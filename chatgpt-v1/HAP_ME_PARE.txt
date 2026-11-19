@@ -1,0 +1,7 @@
+REGINA COLOR - POROSITE
+
+1. Hap REGINA_COLOR_DEMO.html me Chrome ose Edge.
+2. Provo krijimin e porosise dhe dergeses.
+3. Per perdorim nga disa persona lexo regina-porosite/README.md.
+
+VERSIONI DEMO RUAJT VETEM NE SHFLETUES. Nuk eshte ende nje sistem online.

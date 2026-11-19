@@ -1,0 +1,123 @@
+@page "/agent/orders/{id:int}"
+@model ReginaDelivery.Pages.Agent.OrderDetailModel
+@{
+    var o = Model.Order;
+    ViewData["Title"] = Strings.OrderNo + o.Id;
+}
+<a class="back-link" href="/agent">@Strings.BackToList</a>
+
+<div class="page-head">
+    <h1 class="page-title">
+        @Strings.OrderNo@o.Id
+        @if (o.IsVoided)
+        {
+            <span class="badge badge-grey">@Strings.Voided</span>
+        }
+    </h1>
+    <span class="muted">@Time.Format(o.CreatedAtUtc)</span>
+</div>
+
+<div class="detail-grid">
+    <section class="card detail-info @(o.IsVoided ? "voided" : "")">
+        <dl class="facts">
+            <dt>@Strings.Company</dt>
+            <dd><b>@o.CompanyName</b></dd>
+            <dt>@Strings.Location</dt>
+            <dd>@o.Location</dd>
+            @if (!string.IsNullOrEmpty(o.Phone))
+            {
+                <dt>@Strings.Phone</dt>
+                <dd><a href="tel:@o.Phone">@o.Phone</a></dd>
+            }
+            <dt>@Strings.FieldUser</dt>
+            <dd>@o.FieldUser.FullName <span class="muted">(@o.FieldUser.Username)</span></dd>
+            <dt>@Strings.DateTime</dt>
+            <dd>@Time.Format(o.CreatedAtUtc)</dd>
+            @if (!string.IsNullOrEmpty(o.Note))
+            {
+                <dt>@Strings.Note</dt>
+                <dd>@o.Note</dd>
+            }
+            <dt>@Strings.Gps</dt>
+            <dd>
+                @if (o.HasGps)
+                {
+                    <a href="@o.MapUrl" target="_blank" rel="noopener">📍 @Strings.OpenMap</a>
+                }
+                else
+                {
+                    <span class="muted">@Strings.NoGps</span>
+                }
+            </dd>
+            @if (o.IsVoided)
+            {
+                <dt>@Strings.VoidReason</dt>
+                <dd>@o.VoidReason</dd>
+            }
+        </dl>
+        <details class="audit">
+            <summary class="muted small">@Strings.Device / @Strings.IpAddress</summary>
+            <p class="muted small">@o.CreatedByIp<br />@o.UserAgent</p>
+        </details>
+    </section>
+
+    <section class="card">
+        <h2>@Strings.Products</h2>
+        @if (o.HasMissingPrice)
+        {
+            <div class="alert alert-warn">@Strings.MissingPriceWarning</div>
+        }
+        <form method="post" asp-page-handler="Prices" asp-route-id="@o.Id">
+            <table class="table responsive">
+                <thead>
+                    <tr>
+                        <th>@Strings.Product</th>
+                        <th class="num">@Strings.Quantity</th>
+                        <th class="num">@Strings.UnitPrice</th>
+                        <th class="num">@Strings.Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in o.Items.OrderBy(i => i.Id))
+                    {
+                        <tr>
+                            <td data-label="@Strings.Product"><b>@i.ProductLabel</b><br /><small class="muted">@i.Product.Brand · @i.Product.Description</small></td>
+                            <td data-label="@Strings.Quantity" class="num nowrap">@OrderItem.FormatQty(i.Quantity) @i.Unit</td>
+                            <td data-label="@Strings.UnitPrice" class="num">
+                                <input class="price-input" name="price[@i.Id]" inputmode="decimal" value="@(i.UnitPrice.HasValue ? Money.Plain(i.UnitPrice.Value) : "")" placeholder="@Strings.NoPrice" aria-label="@Strings.UnitPrice @i.ProductLabel" /> €
+                            </td>
+                            <td data-label="@Strings.Value" class="num nowrap">@Money.Format(i.LineTotal)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3">@Strings.Total</td>
+                        <td class="num nowrap"><b>@Money.Format(o.Total)</b></td>
+                    </tr>
+                </tfoot>
+            </table>
+            <p class="muted small">@Strings.PricesHint</p>
+            <button type="submit" class="btn btn-primary">@Strings.SavePrices</button>
+        </form>
+    </section>
+</div>
+
+<section class="card danger-zone">
+    @if (o.IsVoided)
+    {
+        <form method="post" asp-page-handler="Restore" asp-route-id="@o.Id">
+            <button type="submit" class="btn btn-ghost">@Strings.Restore</button>
+        </form>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="Void" asp-route-id="@o.Id" class="void-form">
+            <label class="field">
+                <span>@Strings.VoidReason</span>
+                <input name="reason" maxlength="300" required />
+            </label>
+            <button type="submit" class="btn btn-danger">@Strings.VoidOrder</button>
+        </form>
+    }
+</section>

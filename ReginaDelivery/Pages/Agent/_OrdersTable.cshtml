@@ -1,0 +1,146 @@
+@model ReginaDelivery.Pages.Agent.IndexModel
+<div data-latest-id="@Model.LatestOrderId" hidden></div>
+<section class="kpis" aria-label="KPI">
+    <div class="kpi card">
+        <span class="kpi-label">@Strings.KpiOrdersToday</span>
+        <span class="kpi-value">@Model.OrdersToday</span>
+    </div>
+    <div class="kpi card">
+        <span class="kpi-label">@Strings.KpiOrdersWeek</span>
+        <span class="kpi-value">@Model.OrdersWeek</span>
+    </div>
+    <div class="kpi card">
+        <span class="kpi-label">@Strings.KpiSalesWeek</span>
+        <span class="kpi-value">@Money.Format(Model.SalesWeek)</span>
+    </div>
+    <div class="kpi card kpi-accent">
+        <span class="kpi-label">@Strings.KpiSalesMonth</span>
+        <span class="kpi-value">@Money.Format(Model.SalesMonth)</span>
+    </div>
+</section>
+
+<section class="card table-card">
+    <div class="table-head">
+        <h2>@Model.RangeFrom.ToString("dd.MM.yyyy") – @Model.RangeTo.ToString("dd.MM.yyyy") <span class="badge">@Model.TotalCount</span></h2>
+        <span class="muted small" title="@Strings.AutoRefresh">↻ @Strings.LastUpdated @Model.UpdatedAt</span>
+    </div>
+    @if (Model.Rows.Count == 0)
+    {
+        <p class="empty">@Strings.NoOrders</p>
+    }
+    else
+    {
+        <table class="table responsive">
+            <thead>
+                <tr>
+                    <th>@Strings.DateTime</th>
+                    <th>@Strings.FieldUser</th>
+                    <th>@Strings.Company</th>
+                    <th>@Strings.Location</th>
+                    <th>@Strings.Products</th>
+                    <th class="num">@Strings.Value</th>
+                    <th>@Strings.Gps</th>
+                    <th><span class="sr-only">@Strings.Details</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var o in Model.Rows)
+                {
+                    <tr class="@(o.IsVoided ? "voided" : "")" data-href="/agent/orders/@o.Id">
+                        <td data-label="@Strings.DateTime" class="nowrap">
+                            <span class="strike">@Time.Format(o.CreatedAtUtc)</span>
+                            @if (o.IsVoided)
+                            {
+                                <span class="badge badge-grey">@Strings.Voided</span>
+                            }
+                        </td>
+                        <td data-label="@Strings.FieldUser"><span class="strike">@o.FieldUser.FullName</span></td>
+                        <td data-label="@Strings.Company"><span class="strike"><b>@o.CompanyName</b></span></td>
+                        <td data-label="@Strings.Location"><span class="strike">@o.Location</span></td>
+                        <td data-label="@Strings.Products" class="products-cell">
+                            <span class="strike">@string.Join(", ", o.Items.OrderBy(i => i.Id).Select(i => i.Describe()))</span>
+                        </td>
+                        <td data-label="@Strings.Value" class="num nowrap">
+                            <span class="strike">@Money.Format(o.Total)</span>
+                            @if (o.HasMissingPrice)
+                            {
+                                <span class="badge badge-warn" title="@Strings.MissingPriceWarning">!</span>
+                            }
+                        </td>
+                        <td data-label="@Strings.Gps">
+                            @if (o.HasGps)
+                            {
+                                <a href="@o.MapUrl" target="_blank" rel="noopener" title="@Strings.OpenMap">📍</a>
+                            }
+                            else
+                            {
+                                <span class="muted">—</span>
+                            }
+                        </td>
+                        <td class="row-link"><a class="btn btn-ghost btn-sm" href="/agent/orders/@o.Id">@Strings.Details ›</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (Model.PageCount > 1)
+        {
+            <nav class="pager" aria-label="@Strings.Page">
+                @if (Model.PageNo > 1)
+                {
+                    <a class="btn btn-ghost btn-sm" href="/agent@(Model.QueryFor(Model.PageNo - 1))">@Strings.Previous</a>
+                }
+                <span class="muted">@Strings.Page @Model.PageNo / @Model.PageCount</span>
+                @if (Model.PageNo < Model.PageCount)
+                {
+                    <a class="btn btn-ghost btn-sm" href="/agent@(Model.QueryFor(Model.PageNo + 1))">@Strings.Next</a>
+                }
+            </nav>
+        }
+    }
+</section>
+
+<section class="card table-card">
+    <div class="table-head">
+        <h2>@Strings.TotalsPerProduct</h2>
+        <span class="muted small">@Strings.TotalsHint</span>
+    </div>
+    @if (Model.Totals.Count == 0)
+    {
+        <p class="empty">@Strings.NoOrders</p>
+    }
+    else
+    {
+        <table class="table responsive totals">
+            <thead>
+                <tr>
+                    <th>@Strings.Product</th>
+                    <th>@Strings.Brand</th>
+                    <th>@Strings.Size</th>
+                    <th class="num">@Strings.Quantity</th>
+                    <th class="num">@Strings.Value</th>
+                    <th class="num">@Strings.Orders</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in Model.Totals)
+                {
+                    <tr>
+                        <td data-label="@Strings.Product"><b>@t.Product</b></td>
+                        <td data-label="@Strings.Brand">@t.Brand</td>
+                        <td data-label="@Strings.Size">@(t.Size ?? "—")</td>
+                        <td data-label="@Strings.Quantity" class="num"><b>@OrderItem.FormatQty(t.Quantity)</b> @t.Unit</td>
+                        <td data-label="@Strings.Value" class="num">@Money.Format(t.Value)</td>
+                        <td data-label="@Strings.Orders" class="num">@t.Orders</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4">@Strings.Total</td>
+                    <td class="num"><b>@Money.Format(Model.TotalsValue)</b></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+</section>

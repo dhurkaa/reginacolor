@@ -1,0 +1,53 @@
+@{
+    Layout = "_Layout";
+    ViewData["BodyClass"] = "agent";
+    var path = (Context.Request.Path.Value ?? "").ToLowerInvariant().TrimEnd('/');
+    string Active(bool on) => on ? "active" : "";
+}
+<div class="agent-shell">
+    <header class="topbar">
+        <button class="hamburger" type="button" aria-label="@Strings.Menu" aria-expanded="false" aria-controls="sidebar" data-nav-toggle>
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+        <a class="wordmark" href="/agent"><partial name="_Wordmark" /></a>
+    </header>
+    <aside class="sidebar" id="sidebar">
+        <a class="wordmark sidebar-brand" href="/agent"><partial name="_Wordmark" /></a>
+        <nav class="side-nav">
+            <a href="/agent" class="@Active(path == "/agent" || path.StartsWith("/agent/orders"))">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /></svg>
+                @Strings.Orders
+            </a>
+            <a href="/agent/report" class="@Active(path.StartsWith("/agent/report"))">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10m6 10V4m6 16v-7m4 7H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+                @Strings.Report
+            </a>
+            <a href="/agent/products" class="@Active(path.StartsWith("/agent/products"))">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14l-1 13H6zM8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+                @Strings.PriceList
+            </a>
+            <a href="/agent/users" class="@Active(path.StartsWith("/agent/users"))">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0M17 11a3 3 0 1 0 0-6m2 16h3a5 5 0 0 0-4-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+                @Strings.Users
+            </a>
+            <a href="/agent/notifications" class="@Active(path.StartsWith("/agent/notifications"))">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zm4 4a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+                @Strings.Notifications
+            </a>
+        </nav>
+        <div class="sidebar-foot">
+            <div class="who">@User.GetFullName() <small>@Strings.RoleAgent</small></div>
+            <form asp-page="/Logout" method="post">
+                <button type="submit" class="btn btn-ghost btn-sm">@Strings.Logout</button>
+            </form>
+        </div>
+    </aside>
+    <div class="nav-backdrop" data-nav-close></div>
+    <main class="agent-main">
+        <partial name="_Flash" />
+        @RenderBody()
+    </main>
+</div>
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

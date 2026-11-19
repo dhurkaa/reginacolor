@@ -1,0 +1,140 @@
+@page "/field"
+@model ReginaDelivery.Pages.Field.IndexModel
+@{
+    ViewData["Title"] = Strings.NewOrder;
+}
+@if (Model.Done is { } done)
+{
+    <section class="card success-card" aria-live="polite">
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <h1>@Strings.OrderSent</h1>
+        <p class="success-time">#@done.Id · @Time.Format(done.CreatedAtUtc)</p>
+        <p class="success-who"><b>@done.CompanyName</b><br /><span class="muted">@done.Location</span></p>
+        <ul class="item-list">
+            @foreach (var i in done.Items.OrderBy(i => i.Id))
+            {
+                <li><span>@i.ProductLabel</span><b>×@OrderItem.FormatQty(i.Quantity) @i.Unit</b></li>
+            }
+        </ul>
+        @if (done.Total > 0)
+        {
+            <p class="success-total">@Strings.EstimatedTotal: <b>@Money.Format(done.Total)</b></p>
+        }
+        <a class="btn btn-success btn-xl btn-block" href="/field">@Strings.NewOrder</a>
+    </section>
+}
+else
+{
+    <form method="post" id="order-form" novalidate data-units="@string.Join("|", UserRules.Units)">
+        <input type="hidden" asp-for="Input.IdempotencyKey" />
+        <input type="hidden" asp-for="Input.Latitude" id="gps-lat" />
+        <input type="hidden" asp-for="Input.Longitude" id="gps-lng" />
+        <div id="items-hidden"></div>
+
+        @if (Model.Errors.Count > 0)
+        {
+            <div class="alert alert-err" role="alert">
+                @foreach (var e in Model.Errors)
+                {
+                    <div>@e</div>
+                }
+            </div>
+        }
+
+        <div class="search-bar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" /><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            <input type="search" id="product-search" placeholder="@Strings.SearchProduct" autocomplete="off" aria-label="@Strings.SearchProduct" />
+        </div>
+
+        <div id="catalog">
+            @foreach (var group in Model.Products.GroupBy(p => p.Brand))
+            {
+                <section class="brand-group">
+                    <h2 class="brand-title">@group.Key</h2>
+                    <div class="product-grid">
+                        @foreach (var p in group)
+                        {
+                            <button type="button" class="product-card" data-id="@p.Id">
+                                <span class="pc-name">@p.Name</span>
+                                <span class="pc-desc">@p.Description</span>
+                                @if (p.Sizes.Length > 1)
+                                {
+                                    <span class="pc-sizes">@string.Join(" · ", p.Sizes)</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                </section>
+            }
+            <p id="no-results" class="empty" hidden>@Strings.NoResults</p>
+        </div>
+
+        <div class="load-spacer"></div>
+
+        <section class="load-panel" id="load-panel" aria-label="@Strings.Load">
+            <button type="button" class="load-head" id="load-toggle" aria-expanded="false" aria-controls="load-body">
+                <span class="load-title">@Strings.Load <span class="badge" id="load-count">0</span></span>
+                <span class="load-summary" id="load-summary"></span>
+                <svg class="chev" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <div class="load-body" id="load-body">
+                <div id="load-lines"></div>
+                <p class="muted load-empty" id="load-empty">@Strings.LoadEmpty</p>
+                <p class="load-total" id="load-total" hidden>@Strings.EstimatedTotal: <b id="load-total-value"></b></p>
+
+                <div class="fields">
+                    <label class="field">
+                        <span>@Strings.Company *</span>
+                        <input asp-for="Input.CompanyName" id="f-company" maxlength="150" placeholder="@Strings.CompanyPlaceholder" autocomplete="off" required />
+                    </label>
+                    <label class="field">
+                        <span>@Strings.Location *</span>
+                        <input asp-for="Input.Location" id="f-location" maxlength="200" placeholder="@Strings.LocationPlaceholder" autocomplete="off" required />
+                    </label>
+                    <label class="field">
+                        <span>@Strings.Phone <small class="muted">(@Strings.Optional)</small></span>
+                        <input asp-for="Input.Phone" type="tel" maxlength="40" placeholder="@Strings.PhonePlaceholder" autocomplete="off" />
+                    </label>
+                    <label class="field">
+                        <span>@Strings.Note <small class="muted">(@Strings.Optional)</small></span>
+                        <textarea asp-for="Input.Note" rows="2" maxlength="500" placeholder="@Strings.NotePlaceholder"></textarea>
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="f-gps" checked />
+                        <span>📍 @Strings.AddGps</span>
+                    </label>
+                </div>
+            </div>
+            <button type="button" class="btn btn-success btn-xl btn-block send-btn" id="send-btn" aria-disabled="true">@Strings.SendButton</button>
+        </section>
+    </form>
+
+    <dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">@Strings.ConfirmTitle</h2>
+        <p id="confirm-who"></p>
+        <ul class="item-list" id="confirm-items"></ul>
+        <p class="load-total" id="confirm-total" hidden></p>
+        <div class="dialog-actions">
+            <button type="button" class="btn btn-ghost btn-lg" id="confirm-back">@Strings.Back</button>
+            <button type="button" class="btn btn-success btn-lg" id="confirm-ok">@Strings.Confirm</button>
+        </div>
+    </dialog>
+
+    <script type="application/json" id="products-data">@Json.Serialize(Model.Products)</script>
+    <script type="application/json" id="initial-items">@Json.Serialize(Model.Input.Items)</script>
+    <script type="application/json" id="field-strings">@Json.Serialize(new
+    {
+        remove = Strings.Remove,
+        chooseSize = Strings.ChooseSize,
+        shade = Strings.ShadeNumber,
+        quantity = Strings.Quantity,
+        unit = Strings.Unit,
+        size = Strings.Size,
+        saving = Strings.Saving,
+        locating = Strings.GettingLocation,
+        total = Strings.EstimatedTotal,
+    })</script>
+}
+@section Scripts {
+    <script src="~/js/field.js" asp-append-version="true"></script>
+}

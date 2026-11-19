@@ -5,7 +5,3 @@ node_modules/
 .secrets/
 .claude/
 *.log
-# Punë të vjetra / skedarë lokalë që nuk i përkasin aplikacionit
-ReginaDelivery/
-chatgpt-v1/
-SPEC.md

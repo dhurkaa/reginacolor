@@ -1,0 +1,13 @@
+@page "/error/{code:int?}"
+@model ReginaDelivery.Pages.ErrorModel
+@{
+    ViewData["Title"] = Strings.ErrorTitle;
+    ViewData["BodyClass"] = "login-page";
+}
+<main class="login-wrap">
+    <div class="card error-card">
+        <div class="error-code">@Model.Code</div>
+        <p>@Model.Message</p>
+        <a class="btn btn-primary" href="/">@Strings.GoHome</a>
+    </div>
+</main>

@@ -1,0 +1,77 @@
+@page "/agent"
+@model ReginaDelivery.Pages.Agent.IndexModel
+@{
+    ViewData["Title"] = Strings.Orders;
+    var refreshQuery = Model.QueryFor(Model.PageNo).TrimStart('?');
+}
+<div class="page-head">
+    <h1 class="page-title">@Strings.Orders</h1>
+    <a class="btn btn-accent" href="/agent/export.csv@(Model.Filter.ToQueryString())">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        @Strings.ExportCsv
+    </a>
+</div>
+
+<details class="card filters" id="filters" open="@(Model.Field != null || Model.Brand != null || Model.Product != null || Model.Q != null)">
+    <summary>@Strings.Apply · @Model.RangeFrom.ToString("dd.MM.yyyy") – @Model.RangeTo.ToString("dd.MM.yyyy")</summary>
+    <form method="get">
+        <div class="filter-grid">
+            <label class="field">
+                <span>@Strings.From</span>
+                <input type="date" name="from" value="@Model.RangeFrom.ToString("yyyy-MM-dd")" />
+            </label>
+            <label class="field">
+                <span>@Strings.To</span>
+                <input type="date" name="to" value="@Model.RangeTo.ToString("yyyy-MM-dd")" />
+            </label>
+            <label class="field">
+                <span>@Strings.FieldUser</span>
+                <select name="field">
+                    <option value="">@Strings.All</option>
+                    @foreach (var o in Model.FieldOptions)
+                    {
+                        <option value="@o.Value" selected="@(o.Value == Model.Field?.ToString())">@o.Label</option>
+                    }
+                </select>
+            </label>
+            <label class="field">
+                <span>@Strings.Brand</span>
+                <select name="brand">
+                    <option value="">@Strings.AllBrands</option>
+                    @foreach (var b in Model.BrandOptions)
+                    {
+                        <option value="@b" selected="@(b == Model.Brand)">@b</option>
+                    }
+                </select>
+            </label>
+            <label class="field">
+                <span>@Strings.Product</span>
+                <select name="product">
+                    <option value="">@Strings.AllProducts</option>
+                    @foreach (var o in Model.ProductOptions)
+                    {
+                        <option value="@o.Value" selected="@(o.Value == Model.Product?.ToString())">@o.Label</option>
+                    }
+                </select>
+            </label>
+            <label class="field">
+                <span>@Strings.Company / @Strings.Location</span>
+                <input type="search" name="q" value="@Model.Q" placeholder="@Strings.SearchCompanyLocation" />
+            </label>
+        </div>
+        <div class="filter-actions">
+            <a class="btn btn-ghost" href="/agent">@Strings.Reset</a>
+            <button type="submit" class="btn btn-primary">@Strings.Apply</button>
+        </div>
+    </form>
+</details>
+
+<div id="live" data-refresh-url="/agent?handler=Table@(refreshQuery.Length > 0 ? "&" + refreshQuery : "")"
+     data-new-label="@Strings.NewOrdersArrived">
+    <partial name="_OrdersTable" model="Model" />
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+@section Scripts {
+    <script src="~/js/agent.js" asp-append-version="true"></script>
+}

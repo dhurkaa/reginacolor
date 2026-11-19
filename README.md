@@ -157,3 +157,9 @@ npm run vapid      # gjeneron çelësa të rinj VAPID (nëse duhen)
 | `supabase/schema.sql`, `supabase/seed.sql` | databaza, siguria (RLS), çmimet, njoftimet |
 | `vercel.json` | headers sigurie për publikim |
 | `tests/` | testet automatike |
+
+## Arkiva (nuk publikohen në Vercel)
+
+- `chatgpt-v1/` – versioni origjinal 1.0 nga ChatGPT, përfshirë `REGINA_COLOR_DEMO.html` (demo në një skedar).
+- `ReginaDelivery/` – një draft i hershëm në ASP.NET që u braktis; nuk përdoret.
+- `SPEC.md` – specifikimi i parë.

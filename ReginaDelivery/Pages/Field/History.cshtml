@@ -1,0 +1,39 @@
+@page "/field/history"
+@model ReginaDelivery.Pages.Field.HistoryModel
+@{
+    ViewData["Title"] = Strings.History;
+}
+<h1 class="page-title">@Strings.HistoryTitle</h1>
+@if (Model.Orders.Count == 0)
+{
+    <div class="card empty">@Strings.HistoryEmpty</div>
+}
+<div class="history-list">
+    @foreach (var o in Model.Orders)
+    {
+        <article class="card history-item @(o.IsVoided ? "voided" : "")">
+            <header>
+                <time>#@o.Id · @Time.Format(o.CreatedAtUtc)</time>
+                @if (o.IsVoided)
+                {
+                    <span class="badge badge-grey">@Strings.Voided</span>
+                }
+                else if (o.Total > 0)
+                {
+                    <b>@Money.Format(o.Total)</b>
+                }
+            </header>
+            <div class="h-who"><b>@o.CompanyName</b> · <span class="muted">@o.Location</span></div>
+            <ul class="item-list compact">
+                @foreach (var i in o.Items.OrderBy(i => i.Id))
+                {
+                    <li><span>@i.ProductLabel</span><b>×@OrderItem.FormatQty(i.Quantity) @i.Unit</b></li>
+                }
+            </ul>
+            @if (!string.IsNullOrEmpty(o.Note))
+            {
+                <p class="muted small">@o.Note</p>
+            }
+        </article>
+    }
+</div>
