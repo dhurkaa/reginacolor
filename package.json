@@ -1,0 +1,17 @@
+{
+  "name": "regina-color-porosite",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs 8080",
+    "vapid": "web-push generate-vapid-keys",
+    "test": "node tests/verify.mjs && node tests/notify.test.mjs"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
