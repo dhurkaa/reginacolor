@@ -3,22 +3,43 @@ const SESSION_KEY='regina-cloud-session';
 const {supabaseUrl:url,supabaseAnonKey:key}=CLOUD_CONFIG;
 export const isCloudConfigured=Boolean(url&&key);
 const getSession=()=>{try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}};
+// The login stays saved on this device until the user taps "Dil", the account is removed or deactivated,
+// or Supabase rejects the refresh token. A missing or weak internet connection never logs anyone out.
+const authRejected=e=>[400,401,403].includes(e?.status);
+const offlineError=()=>Object.assign(Error('Nuk ka lidhje me internetin. Provo përsëri pas pak.'),{offline:true});
+const withRefreshLock=fn=>navigator.locks?.request?navigator.locks.request('regina-token-refresh',fn):fn();
 export class CloudBackend {
   constructor(){this.isDemo=false;this.session=getSession();this.user=null;}
   async authCall(path,payload,accessToken){
     const res=await fetch(`${url}/auth/v1/${path}`,{method:'POST',headers:{'apikey':key,'Content-Type':'application/json',...(accessToken?{Authorization:`Bearer ${accessToken}`}:{})},body:JSON.stringify(payload)});
-    const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(data.msg||data.error_description||data.message||'Gabim në hyrje');return data;
+    const data=await res.json().catch(()=>({}));if(!res.ok)throw Object.assign(Error(data.msg||data.error_description||data.message||'Gabim në hyrje'),{status:res.status});return data;
   }
   saveSession(s){this.session=s;if(s)localStorage.setItem(SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(SESSION_KEY);}
-  async ensureToken(){if(!this.session)throw Error('Ju lutem kyçuni');if(Date.now()<Number(this.session.expires_at||0)*1000-90_000)return this.session.access_token;
-    try{const r=await this.authCall('token?grant_type=refresh_token',{refresh_token:this.session.refresh_token});this.saveSession({...r,expires_at:Math.floor(Date.now()/1000)+r.expires_in});return r.access_token;}catch(e){this.saveSession(null);this.user=null;throw Error('Sesioni ka skaduar. Kyçuni përsëri.');}}
+  // Another tab may have refreshed the tokens already: always prefer the newest saved session.
+  syncSession(){const stored=getSession();if(stored&&(!this.session||Number(stored.expires_at||0)>Number(this.session.expires_at||0)))this.session=stored;return this.session;}
+  fresh(){return this.session&&Date.now()<Number(this.session.expires_at||0)*1000-90_000;}
+  async ensureToken(){
+    if(!this.syncSession())throw Error('Ju lutem kyçuni');
+    if(this.fresh())return this.session.access_token;
+    return withRefreshLock(async()=>{
+      if(!this.syncSession())throw Error('Ju lutem kyçuni');
+      if(this.fresh())return this.session.access_token;
+      const used=this.session.refresh_token;
+      try{const r=await this.authCall('token?grant_type=refresh_token',{refresh_token:used});this.saveSession({...r,expires_at:Math.floor(Date.now()/1000)+r.expires_in});return r.access_token;}
+      catch(e){
+        if(!authRejected(e))throw offlineError();
+        const again=getSession();if(again&&again.refresh_token!==used){this.session=again;if(this.fresh())return again.access_token;}
+        this.saveSession(null);this.user=null;throw Object.assign(Error('Sesioni ka skaduar. Kyçuni përsëri.'),{expired:true});
+      }
+    });
+  }
   async api(path,{method='GET',body,all=false}={}){
     const token=await this.ensureToken();
     const common={'apikey':key,'Authorization':`Bearer ${token}`,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':'return=minimal'};
-    const call=async(range)=>{const res=await fetch(`${url}/rest/v1/${path}`,{method,headers:{...common,...(range?{Range:range}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!res.ok){const err=await res.json().catch(()=>({}));throw Error(err.message||err.error||`Gabim i databazës (${res.status})`);}if(res.status===204)return [];const raw=await res.text();return raw?JSON.parse(raw):[];};
+    const call=async(range)=>{const res=await fetch(`${url}/rest/v1/${path}`,{method,headers:{...common,...(range?{Range:range}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})}).catch(()=>{throw offlineError();});if(!res.ok){const err=await res.json().catch(()=>({}));throw Error(err.message||err.error||`Gabim i databazës (${res.status})`);}if(res.status===204)return [];const raw=await res.text();return raw?JSON.parse(raw):[];};
     if(!all)return call();let result=[];let start=0;for(let i=0;i<100;i++){const page=await call(`${start}-${start+999}`);result=result.concat(page);if(page.length<1000)break;start+=1000;}return result;
   }
-  async init(){if(!this.session)return null;try{const token=await this.ensureToken();const res=await fetch(`${url}/auth/v1/user`,{headers:{'apikey':key,'Authorization':`Bearer ${token}`}});if(!res.ok)throw Error('Sesioni nuk është aktiv');const auth=await res.json();const rows=await this.api(`profiles?id=eq.${auth.id}&select=*`);this.user=rows?.[0]||null;if(!this.user?.active)throw Error('Llogaria juaj nuk është aktivizuar ende nga administratori.');return this.user;}catch(e){if(!String(e.message).includes('aktivizuar'))this.saveSession(null);throw e;}}
+  async init(){if(!this.session)return null;try{const token=await this.ensureToken();const res=await fetch(`${url}/auth/v1/user`,{headers:{'apikey':key,'Authorization':`Bearer ${token}`}}).catch(()=>{throw offlineError();});if(!res.ok)throw Object.assign(Error('Sesioni nuk është aktiv'),{status:res.status});const auth=await res.json();const rows=await this.api(`profiles?id=eq.${auth.id}&select=*`);this.user=rows?.[0]||null;if(!this.user?.active)throw Error('Llogaria juaj nuk është aktivizuar ende nga administratori.');return this.user;}catch(e){if(e.offline||e instanceof TypeError)throw e.offline?e:offlineError();if(e.expired||authRejected(e))this.saveSession(null);throw e;}}
   async login(email,password){const r=await this.authCall('token?grant_type=password',{email,password});this.saveSession({...r,expires_at:Math.floor(Date.now()/1000)+r.expires_in});return this.init();}
   async logout(){try{const token=await this.ensureToken();await this.authCall('logout',{},token);}catch{}this.saveSession(null);this.user=null;}
   async load(){const tables=['clients','products','product_variants','product_prices','orders','order_items','shipments','shipment_items','order_events','profiles'];const result=await Promise.all(tables.map(t=>this.api(`${t}?select=*`,{all:true})));return Object.fromEntries(tables.map((t,i)=>[t,result[i]]));}

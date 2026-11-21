@@ -410,3 +410,24 @@ code{background:#F1EDE6;padding:1px 6px;border-radius:6px;font-size:12px}
   .panel{box-shadow:none;border:1px solid #ccc;break-inside:avoid}
   .two-col{display:block}
 }
+
+/* ---------- v1.3: logoja zyrtare, hyrja me role, klienti i lirë ---------- */
+.boot{background:var(--side);color:#fff}
+.boot small{color:#B9B2A6}
+.boot-logo{width:176px;height:auto}
+.brand-logo{width:184px;height:auto;display:block}
+.login-hero .brand-logo{width:210px}
+.hero-products{display:block;width:min(100%,540px);margin:28px -20px -44px auto;pointer-events:none}
+.login-hero h1{margin-top:32px}
+.role-pick{display:grid;gap:10px}
+.role-card{display:flex;align-items:center;gap:14px;text-align:left;border:1.5px solid #E3DCCF;background:#fff;border-radius:14px;padding:13px 16px;transition:border-color .15s,background .15s}
+.role-card:hover{background:#FCFAF6}
+.role-card.on{border-color:var(--gold);background:var(--goldsoft)}
+.role-card b{display:block;font-size:15.5px}
+.role-card small{color:var(--muted);font-size:12.5px}
+.role-ico{width:44px;height:44px;border-radius:12px;background:#F6F1E9;display:grid;place-items:center;color:var(--ink);flex-shrink:0}
+.role-card.on .role-ico{background:var(--gold-grad);color:#fff}
+.combo{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%231B1915' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:40px}
+.combo::-webkit-calendar-picker-indicator{opacity:0}
+#client-hint .ico{color:var(--gold2)}
+@media(max-width:820px){.hero-products{display:none}.brand-logo{width:164px}}

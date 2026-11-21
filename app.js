@@ -35,7 +35,7 @@ const CATALOG_GROUPS=[['all','Të gjitha',()=>true],['regina','Regina colori',p=
 // Gjendja dhe të dhënat
 // ====================================================================
 const S={user:null,data:null,view:'dashboard',selectedOrder:null,modal:null,product:null,selectedShade:null,
-  cart:{},clientId:'',clientName:'',note:'',rowSel:{},searchProducts:'',searchOrders:'',ordersFilter:'all',expanded:{},
+  cart:{},clientName:'',clientLocation:'',note:'',rowSel:{},searchProducts:'',searchOrders:'',ordersFilter:'all',expanded:{},
   dashSearch:'',dashFilter:'all',catalogSearch:'',catalogGroup:'all',reportPeriod:'month',reportYear:new Date().getFullYear(),
   reportMonth:new Date().getMonth()+1,reportSort:'qty',pricesSearch:'',pushState:null,mobileOpen:false,loginError:null};
 const canManage=()=>['warehouse','admin'].includes(S.user?.role);
@@ -50,11 +50,12 @@ const orderItems=id=>getData().order_items.filter(x=>x.order_id===id);
 const remainder=o=>orderItems(o.id).reduce((a,x)=>a+x.ordered_qty-x.fulfilled_qty,0);
 const sent=o=>orderItems(o.id).reduce((a,x)=>a+x.fulfilled_qty,0);
 const total=o=>orderItems(o.id).reduce((a,x)=>a+x.ordered_qty,0);
-const priceOf=(productId,size)=>{const p=(getData().product_prices||[]).find(x=>x.product_id===productId&&x.size_label===size);return p?Number(p.price):null;};
+const P=CLOUD_CONFIG.showPrices!==false; // false = çmimet dhe vlerat në € fshihen kudo (të dhënat në databazë mbeten)
+const priceOf=(productId,size)=>{if(!P)return null;const p=(getData().product_prices||[]).find(x=>x.product_id===productId&&x.size_label===size);return p?Number(p.price):null;};
 const orderValue=o=>orderItems(o.id).reduce((a,x)=>a+(x.unit_price!=null?Number(x.unit_price)*x.ordered_qty:0),0);
 const sentValue=o=>orderItems(o.id).reduce((a,x)=>a+(x.unit_price!=null?Number(x.unit_price)*x.fulfilled_qty:0),0);
-const hasPrice=o=>orderItems(o.id).some(x=>x.unit_price!=null);
-const missingPrice=o=>orderItems(o.id).some(x=>x.unit_price==null);
+const hasPrice=o=>P&&orderItems(o.id).some(x=>x.unit_price!=null);
+const missingPrice=o=>P&&orderItems(o.id).some(x=>x.unit_price==null);
 const statusText=o=>o.status==='completed'&&remainder(o)>0?'E mbyllur me mbetje':statusNames[o.status]||o.status;
 const badge=o=>`<span class="badge ${e(o.status)}">${e(statusText(o))}</span>`;
 const fmtId=o=>`#RG-${String(o.order_no||0).padStart(4,'0')}`;
@@ -80,8 +81,8 @@ function navItems(){return [
   {key:'new',label:'Krijo porosi',icon:'plusCircle'},
   {key:'orders',label:canManage()?'Porositë':'Porositë e mia',icon:'clipboard'},
   {key:'catalog',label:'Katalogu i produkteve',icon:'bag'},
-  ...(isAdmin()?[{key:'prices',label:'Çmimet',icon:'tag'}]:[]),
-  ...(canManage()?[{key:'reports',label:'Shitjet dhe raportet',icon:'chart'}]:[]),
+  ...(isAdmin()&&P?[{key:'prices',label:'Çmimet',icon:'tag'}]:[]),
+  ...(canManage()?[{key:'reports',label:P?'Shitjet dhe raportet':'Raportet',icon:'chart'}]:[]),
   {key:'notifications',label:'Njoftimet',icon:'bell'},
   ...(isAdmin()?[{key:'team',label:'Stafi & qasja',icon:'users'}]:[]),
 ];}
@@ -105,7 +106,7 @@ function topbar(){return `<header class="topbar"><div class="top-left"><button c
 
 function render(){
   if(!S.user){renderLogin();return;}
-  if(!S.data){app.innerHTML=`<div class="boot">${crown(48)}REGINA <span>colori</span><small>Duke ngarkuar…</small></div>`;return;}
+  if(!S.data){app.innerHTML=`<div class="boot"><img class="boot-logo" src="assets/brand/regina-colori.png" alt="Regina Colori" width="176" height="44"/><small>Duke ngarkuar…</small></div>`;return;}
   const pages={dashboard:dashboardView,new:newOrderView,orders:ordersView,catalog:catalogView,prices:pricesView,reports:reportsView,notifications:notificationsView,team:teamView};
   if(!navItems().some(n=>n.key===S.view))S.view='dashboard';
   app.innerHTML=`<div class="layout">${sidebar()}<main class="main">${topbar()}<div class="content">${notice()}${pages[S.view]()}</div></main></div>${modalHtml()}`;
@@ -114,10 +115,26 @@ function render(){
 // ====================================================================
 // Hyrja
 // ====================================================================
-function loginHero(){return `<section class="login-hero">${logo()}<div><h1>Çdo porosi.<br/><em>Në një vend.</em></h1><p>Porositë nga agjentët në terren, realizimi në fabrikë, njoftimet dhe shitjet mujore, pa fletore dhe pa humbur të dhëna.</p></div>${fan()}</section>`;}
+function loginHero(){return `<section class="login-hero">${logo()}<div><h1>Çdo porosi.<br/><em>Në një vend.</em></h1><p>Porositë nga agjentët në terren, realizimi në fabrikë dhe njoftimet, pa fletore dhe pa humbur të dhëna.</p></div><img class="hero-products" src="assets/brand/hero-products.webp" alt="" aria-hidden="true"/></section>`;}
+// Hyrja: zgjidh rolin (config.js → loginAccounts), pastaj vetëm fjalëkalimi. Email-at nuk janë sekret.
+const LOGIN_ACCOUNTS=Array.isArray(CLOUD_CONFIG.loginAccounts)?CLOUD_CONFIG.loginAccounts:[];
+const loginIcons={admin:'checkCircle',agent:'user',warehouse:'home'};
+function loginRoleSaved(){try{return localStorage.getItem('regina-login-role')||'';}catch{return '';}}
+function loginForm(){
+  if(S.loginRole===undefined){const saved=loginRoleSaved();S.loginRole=LOGIN_ACCOUNTS.some(a=>a.key===saved)?saved:(LOGIN_ACCOUNTS.length?'':'other');}
+  const acc=LOGIN_ACCOUNTS.find(a=>a.key===S.loginRole);const other=S.loginRole==='other';const chosen=Boolean(acc)||other;
+  return `<form class="login-card" id="login-form"><div><div class="eyebrow">Qasje e kufizuar</div><h1>Kyçu në sistem</h1><p style="margin-top:9px">${chosen?'Shkruaj fjalëkalimin për të vazhduar.':'Zgjidh si dëshiron të hysh.'}</p></div>
+  ${S.loginError?`<div class="notice" role="alert">${e(S.loginError)}</div>`:''}
+  ${LOGIN_ACCOUNTS.length&&!other?`<div class="role-pick" role="group" aria-label="Hyr si">${LOGIN_ACCOUNTS.map(a=>`<button type="button" class="role-card ${S.loginRole===a.key?'on':''}" data-action="login-role" data-id="${e(a.key)}" aria-pressed="${S.loginRole===a.key}"><span class="role-ico">${icon(loginIcons[a.key]||'user',24)}</span><span><b>${e(a.label)}</b><small>${e(a.hint||'')}</small></span></button>`).join('')}</div>`:''}
+  ${acc?`<input type="email" name="email" value="${e(acc.email)}" autocomplete="username" class="sr-only" tabindex="-1" aria-hidden="true" readonly/>`:''}
+  ${other?`<div class="field"><label for="login-email">Email</label><input id="login-email" type="email" class="input" name="email" required autocomplete="username" placeholder="emri@kompania.com"/></div>`:''}
+  ${chosen?`<div class="field"><label for="login-password">Fjalëkalimi${acc?` për <b>${e(acc.label)}</b>`:''}</label><input id="login-password" type="password" class="input" name="password" required autocomplete="current-password"/></div><button class="btn gold lg full" type="submit">${acc?`Kyçu si ${e(acc.label)}`:'Kyçu'} ${icon('arrowRight',20)}</button>`:''}
+  ${LOGIN_ACCOUNTS.length?`<button type="button" class="link" style="justify-self:start" data-action="login-role" data-id="${other?'':'other'}">${other?'← Zgjidh rolin':'Llogari tjetër? Hyr me email'}</button>`:''}
+  <p class="hint">Vetëm përdoruesit e aktivizuar nga administratori mund të hyjnë.</p></form>`;
+}
 function renderLogin(){
   if(backend.isDemo){app.innerHTML=`<div class="login-view">${loginHero()}<section class="login-box"><div class="login-card"><div><div class="eyebrow">Provo aplikacionin</div><h1>Mirë se erdhe!</h1><p style="margin-top:10px">Zgjedh rolin me të cilin dëshiron ta provosh. Demonstrimi nuk përdor llogari të vërteta.</p></div><div class="field"><label for="demo-start-role">Roli demonstrues</label><select class="select" id="demo-start-role"><option value="demo-agent">Agjent shitjeje</option><option value="demo-warehouse">Fabrika / magazina</option><option value="demo-admin">Administrator</option></select></div><button class="btn gold lg full" data-action="start-demo">Hap aplikacionin ${icon('arrowRight',20)}</button><div class="notice demo">Për përdorim të përbashkët kërkohet konfigurimi Supabase sipas README.</div></div></section></div>`;return;}
-  app.innerHTML=`<div class="login-view">${loginHero()}<section class="login-box"><form class="login-card" id="login-form"><div><div class="eyebrow">Qasje e kufizuar</div><h1>Kyçu në sistem</h1><p style="margin-top:9px">Përdor llogarinë e krijuar nga administratori i Regina Color.</p></div>${S.loginError?`<div class="notice">${e(S.loginError)}</div>`:''}<div class="field"><label for="l-email">Email</label><input id="l-email" type="email" class="input" name="email" required autocomplete="username" placeholder="emri@kompania.com"/></div><div class="field"><label for="l-pass">Fjalëkalimi</label><input id="l-pass" type="password" class="input" name="password" required autocomplete="current-password"/></div><button class="btn gold lg full" type="submit">Kyçu ${icon('arrowRight',20)}</button><p class="hint">Vetëm përdoruesit e aktivizuar nga administratori mund të hyjnë.</p></form></section></div>`;
+  app.innerHTML=`<div class="login-view">${loginHero()}<section class="login-box">${loginForm()}</section></div>`;
 }
 function fan(){
   const tones=[['#F3E6CF','#EAD7B6','#E2C99E'],['#EBD4AE','#E1C08C','#D5AC6F'],['#E7C177','#DDAA4B','#C98F2A'],['#D9C978','#C2B25A','#9E9443'],['#AFC79A','#8FAE7C','#6B8F5C'],['#9CC3C4','#6FA4AA','#3F7F88'],['#9DB7D3','#6E95BE','#46709E'],['#7F94B8','#566F9A','#2F4775']];
@@ -136,7 +153,7 @@ function dashboardView(){
   const q=S.dashSearch.trim().toLowerCase();
   const latest=sortedOrders().filter(o=>(S.dashFilter==='all'||o.status===S.dashFilter)&&orderMatches(o,q)).slice(0,8);
   const n=new Date();
-  const third=canManage()
+  const third=canManage()&&P
     ?statCard('green','Shitjet këtë muaj',eur(shippedValueBetween(new Date(n.getFullYear(),n.getMonth(),1),new Date(n.getFullYear(),n.getMonth()+1,1))),e(MONTHS[n.getMonth()])+' · të dërguara','euro','stat-money')
     :statCard('green','Të përfunduara',num(d.orders.filter(o=>o.status==='completed').length),'në total','checkCircle');
   return `<div class="page-head"><h1>Përmbledhja e porosive</h1><button class="btn gold lg" data-action="nav" data-id="new">${icon('plus',20)}Porosi e re</button></div>
@@ -159,16 +176,37 @@ function rowSel(p){
   const s=S.rowSel[p.id]||{};
   return {size:sizes.includes(s.size)?s.size:sizes[0],shade:shades.includes(s.shade)?s.shade:(shades[0]||''),qty:s.qty>0?s.qty:1,sizes,shades};
 }
+// Klienti: shkruhet lirshëm ose zgjidhet nga lista; nëse kombinimi klient + lokacion nuk ekziston, krijohet kur dërgohet porosia.
+const activeClients=()=>getData().clients.filter(c=>c.active);
+const norm=s=>String(s||'').trim().toLowerCase();
+function resolveClient(){
+  const n=norm(S.clientName),l=norm(S.clientLocation);
+  if(!n)return null;
+  const same=activeClients().filter(c=>norm(c.name)===n);
+  if(l)return same.find(c=>norm(c.location)===l)||null;
+  return same.length===1?same[0]:null;
+}
+const clientReady=()=>Boolean(resolveClient())||(S.clientName.trim().length>=2&&S.clientLocation.trim().length>=2);
+function clientHint(){
+  const c=resolveClient();
+  if(c)return `${icon('checkCircle',16)} Klient ekzistues: ${e(c.name)} — ${e(c.location)}`;
+  if(!S.clientName.trim())return 'Shkruaj emrin ose zgjedh nga lista.';
+  if(S.clientLocation.trim().length<2)return 'Shkruaj ose zgjedh lokacionin.';
+  return `${icon('plusCircle',16)} Klient i ri – ruhet kur dërgohet porosia.`;
+}
+function syncClientUi(){
+  const h=document.getElementById('client-hint');if(h)h.innerHTML=clientHint();
+  const btn=document.querySelector('[data-action="submit-order"]');if(btn)btn.disabled=!(cartEntries().length&&clientReady());
+}
 function clientPicker(){
-  const clients=getData().clients.filter(c=>c.active);
-  const current=byId('clients',S.clientId);
-  if(current&&!S.clientName)S.clientName=current.name;
+  const clients=activeClients();
   const names=[...new Set(clients.map(c=>c.name))].sort((a,b)=>a.localeCompare(b));
-  const locs=clients.filter(c=>c.name===S.clientName).sort((a,b)=>a.location.localeCompare(b.location));
+  const same=clients.filter(c=>norm(c.name)===norm(S.clientName));
+  const locs=[...new Set((same.length?same:clients).map(c=>c.location))].sort((a,b)=>a.localeCompare(b));
   return `<div class="grid2">
-    <div class="field"><label for="new-client-name">Klienti *</label><select class="select" id="new-client-name"><option value="">— Zgjedh klientin —</option>${names.map(n=>`<option value="${e(n)}" ${S.clientName===n?'selected':''}>${e(n)}</option>`).join('')}</select></div>
-    <div class="field"><label for="new-client-loc">Lokacioni *</label><select class="select" id="new-client-loc" ${S.clientName?'':'disabled'}><option value="">${S.clientName?'— Zgjedh lokacionin —':'Zgjedh klientin më parë'}</option>${locs.map(c=>`<option value="${e(c.id)}" ${S.clientId===c.id?'selected':''}>${e(c.location)}</option>`).join('')}</select></div>
-  </div>`;
+    <div class="field"><label for="client-name">Klienti *</label><input class="input combo" id="client-name" list="client-names" autocomplete="off" maxlength="150" placeholder="Shkruaj ose zgjedh klientin…" value="${e(S.clientName)}"/><datalist id="client-names">${names.map(n=>`<option value="${e(n)}"></option>`).join('')}</datalist></div>
+    <div class="field"><label for="client-location">Lokacioni *</label><input class="input combo" id="client-location" list="client-locations" autocomplete="off" maxlength="150" placeholder="${same.length>1?'Zgjedh lokacionin…':'P.sh. Istog'}" value="${e(S.clientLocation)}"/><datalist id="client-locations">${locs.map(n=>`<option value="${e(n)}"></option>`).join('')}</datalist></div>
+  </div><p class="hint" id="client-hint" style="display:flex;gap:6px;align-items:center">${clientHint()}</p>`;
 }
 function productRow(p){
   const s=rowSel(p);const shaded=s.shades.length>0;
@@ -193,7 +231,7 @@ function newOrderView(){
   const entries=cartEntries();
   const count=entries.reduce((a,x)=>a+x.qty,0);
   const value=entries.reduce((a,x)=>{const pr=priceOf(x.v.product_id,x.v.size_label);return a+(pr!=null?pr*x.qty:0);},0);
-  const ready=entries.length&&S.clientId;
+  const ready=entries.length&&clientReady();
   return `<div class="page-head"><h1>Krijo një porosi</h1></div>
   <div class="order-layout">
     <div>
@@ -210,7 +248,7 @@ function newOrderView(){
       <div class="field" style="margin-top:20px"><label for="order-note" class="card-h" style="font-size:17px;color:var(--ink)">${icon('note',22)}Shënime për fabrikën</label><textarea class="textarea" id="order-note" placeholder="P.sh. Klienti i kërkon për nesër…">${e(S.note)}</textarea></div>
       <div class="summary-box"><div class="row between"><span class="row">${icon('box',22)}Artikuj të ndryshëm</span><b>${num(entries.length)}</b></div><div class="row between"><span class="row">${icon('boxes',22)}Njësi ambalazhi gjithsej</span><b>${num(count)}</b></div>${value?`<div class="row between"><span class="row">${icon('euro',22)}Vlera sipas listës</span><b>${eur(value)}</b></div>`:''}</div>
       <button class="btn gold xl full" data-action="submit-order" ${ready?'':'disabled'}>Dërgo porosinë ${icon('arrowRight',22)}</button>
-      <p class="hint" style="text-align:center">${!S.clientId?'Zgjedh klientin dhe lokacionin.':!entries.length?'Shto të paktën një produkt.':'Data dhe ora regjistrohen automatikisht.'}</p>
+      <p class="hint" style="text-align:center">${!clientReady()?'Shkruaj klientin dhe lokacionin.':!entries.length?'Shto të paktën një produkt.':'Data dhe ora regjistrohen automatikisht.'}</p>
     </section></aside>
   </div>
   ${entries.length?`<div class="mobile-cartbar"><span><b>${num(entries.length)}</b> artikuj · ${num(count)} njësi</span><button class="btn gold sm" data-action="scroll-summary">Porosia ${icon('arrowRight',16)}</button></div>`:''}`;
@@ -253,13 +291,13 @@ function orderDetail(o){
   <div class="page-head"><div><h1>Porosia ${fmtId(o)}</h1><p>${e(c?.name||'—')} · ${e(c?.location||'—')}</p></div><div class="row wrap">${badge(o)}<button class="btn outline sm" data-action="print">${icon('printer',16)}Shtyp</button></div></div>
   <section class="panel pad" style="margin-bottom:20px"><div class="detail-info">
     <div><span>Klienti</span><strong>${e(c?.name||'')}</strong></div><div><span>Lokacioni</span><strong>${e(c?.location||'')}</strong></div><div><span>Agjenti</span><strong>${e(agent?.full_name||'—')}</strong></div><div><span>Porositur më</span><strong>${e(time(o.created_at))}</strong></div><div><span>Përfunduar më</span><strong>${e(time(o.completed_at))}</strong></div>
-    <div><span>Totali i njësive</span><strong>${num(total(o))}</strong></div><div><span>Njësi të dërguara</span><strong>${num(sent(o))}</strong></div><div><span>Mbetur</span><strong>${num(remainder(o))}</strong></div><div><span>Vlera e porosisë</span><strong>${hasPrice(o)?eur(orderValue(o)):'—'}</strong></div><div><span>Vlera e dërguar</span><strong>${hasPrice(o)?eur(sentValue(o)):'—'}</strong></div>
+    <div><span>Totali i njësive</span><strong>${num(total(o))}</strong></div><div><span>Njësi të dërguara</span><strong>${num(sent(o))}</strong></div><div><span>Mbetur</span><strong>${num(remainder(o))}</strong></div>${P?`<div><span>Vlera e porosisë</span><strong>${hasPrice(o)?eur(orderValue(o)):'—'}</strong></div><div><span>Vlera e dërguar</span><strong>${hasPrice(o)?eur(sentValue(o)):'—'}</strong></div>`:''}
   </div>
   <div class="row" style="margin-top:18px;gap:14px"><div class="progress" style="flex:1"><i style="width:${pct(o)}%"></i></div><b class="mono">${pct(o)}%</b></div>
   ${o.notes?`<div class="notice" style="margin:16px 0 0"><b>Shënim nga agjenti:</b> ${e(o.notes)}</div>`:''}</section>
   <div class="two-col"><div><section class="panel">
     <div class="pad section-title" style="margin:0;padding-bottom:12px"><h2>${icon('layers',22)}Produktet dhe sasitë</h2><span class="row small muted">${its.length} rreshta${isAdmin()&&missingPrice(o)?`<button class="btn gold-outline sm" data-action="fill-prices" data-id="${e(o.id)}">Plotëso çmimet nga lista</button>`:''}</span></div>
-    <div class="table-wrap" style="padding:0 12px 8px"><table class="table" style="min-width:${ship?680:560}px"><thead><tr><th>Produkti</th><th>Porositur</th><th>Dërguar</th><th>Mbetur</th><th>Çmimi / njësi</th><th>Vlera</th>${ship?'<th>Dërgo tani</th>':''}</tr></thead><tbody>${its.map(it=>{const left=it.ordered_qty-it.fulfilled_qty;const p=productOfItem(it);return `<tr><td><div class="prod-cell">${p?swatch(p):''}<div><b>${e(itemFullName(it))}</b><div class="small muted">${e(unitName(p))}</div>${isAdmin()&&!closed?`<div class="row" style="margin-top:8px;gap:6px"><input class="input qty-input" type="number" min="${it.fulfilled_qty||1}" max="1000000" value="${it.ordered_qty}" id="edit-${e(it.id)}" aria-label="Sasia e porositur"/><button class="btn outline sm" data-action="adjust-item" data-id="${e(it.id)}">Korrigjo</button></div>`:''}</div></div></td><td class="mono"><b>${num(it.ordered_qty)}</b></td><td class="mono" style="color:var(--green);font-weight:700">${num(it.fulfilled_qty)}</td><td class="mono">${num(left)}</td>${priceCells(it)}${ship?`<td><input id="ship-${e(it.id)}" type="number" class="input qty-input shipinput" min="0" max="${left}" value="0" ${left===0?'disabled':''} aria-label="Sasia për dërgesë"/></td>`:''}</tr>`;}).join('')}</tbody></table></div>
+    <div class="table-wrap" style="padding:0 12px 8px"><table class="table" style="min-width:${ship?680:560}px"><thead><tr><th>Produkti</th><th>Porositur</th><th>Dërguar</th><th>Mbetur</th>${P?'<th>Çmimi / njësi</th><th>Vlera</th>':''}${ship?'<th>Dërgo tani</th>':''}</tr></thead><tbody>${its.map(it=>{const left=it.ordered_qty-it.fulfilled_qty;const p=productOfItem(it);return `<tr><td><div class="prod-cell">${p?swatch(p):''}<div><b>${e(itemFullName(it))}</b><div class="small muted">${e(unitName(p))}</div>${isAdmin()&&!closed?`<div class="row" style="margin-top:8px;gap:6px"><input class="input qty-input" type="number" min="${it.fulfilled_qty||1}" max="1000000" value="${it.ordered_qty}" id="edit-${e(it.id)}" aria-label="Sasia e porositur"/><button class="btn outline sm" data-action="adjust-item" data-id="${e(it.id)}">Korrigjo</button></div>`:''}</div></div></td><td class="mono"><b>${num(it.ordered_qty)}</b></td><td class="mono" style="color:var(--green);font-weight:700">${num(it.fulfilled_qty)}</td><td class="mono">${num(left)}</td>${P?priceCells(it):''}${ship?`<td><input id="ship-${e(it.id)}" type="number" class="input qty-input shipinput" min="0" max="${left}" value="0" ${left===0?'disabled':''} aria-label="Sasia për dërgesë"/></td>`:''}</tr>`;}).join('')}</tbody></table></div>
     ${ship?`<div class="ship-box"><div class="row between wrap"><h3>${icon('truck',20)}Dërgesa e radhës</h3><button class="btn outline sm" data-action="fill-remaining">Mbush me sasitë e mbetura</button></div><div class="field"><label for="shipment-note">Shënim për dërgesën (opsional)</label><input class="input" id="shipment-note" placeholder="P.sh. Dërgesa me automjetin…"/></div><label class="check"><input type="checkbox" id="close-order"/>Mbylle porosinë pas kësaj dërgese, edhe nëse mbesin produkte pa u dërguar</label><button class="btn gold lg full" data-action="ship" data-id="${e(o.id)}">Regjistro dërgesën</button><p class="hint" style="margin:0">Dërgesa merr automatikisht datën dhe orën. Agjenti njoftohet në telefon.</p>
       <div class="row wrap">${o.status==='new'?`<button class="btn outline sm" data-action="status" data-id="preparing">Kalo në përgatitje</button>`:''}${o.status==='new'||o.status==='preparing'?`<button class="btn danger sm" data-action="status" data-id="cancelled">Anulo porosinë</button>`:''}</div></div>`:''}
     ${isAdmin()&&o.status==='completed'&&remainder(o)>0?`<div class="ship-box"><button class="btn outline sm" data-action="reopen" data-id="${e(o.id)}">Rihap për dërgesë tjetër</button></div>`:''}
@@ -332,28 +370,28 @@ function reportsView(){
   const add=(map,key,x)=>{const c=map.get(key)||{q:0,v:0};c.q+=x.quantity;c.v+=x.value;map.set(key,c);};
   const byProduct=new Map(),byClient=new Map(),byAgent=new Map();
   for(const x of rows){add(byProduct,[x.product,x.shade,x.size].filter(Boolean).join(' · '),x);add(byClient,[x.client,x.location].filter(Boolean).join(' — '),x);add(byAgent,x.agent||'—',x);}
-  const k=S.reportSort==='value'?'v':'q';
+  const k=P&&S.reportSort==='value'?'v':'q';
   const ranked=[...byProduct].sort((a,b)=>b[1][k]-a[1][k]);
-  const byValue=(a,b)=>b[1].v-a[1].v||b[1].q-a[1].q;
+  const byValue=(a,b)=>(P?b[1].v-a[1].v:0)||b[1].q-a[1].q;
   const clients=[...byClient].sort(byValue),agents=[...byAgent].sort(byValue);
   const max=ranked[0]?.[1][k]||1;const prev=previousPeriodValue();
-  const rankRow=([name,c])=>`<div class="row between rank-row"><span>${e(name)}</span><span class="mono nowrap"><b>${eur(c.v)}</b> <span class="muted">· ${num(c.q)}</span></span></div>`;
-  return `<div class="page-head"><div><h1>Shitjet dhe dërgesat</h1><p>Sipas sasive realisht të dërguara dhe datës së dërgesës, me çmimin e secilës porosi.</p></div><button class="btn outline" data-action="export-csv">${icon('download',18)}Eksporto CSV</button></div>
+  const rankRow=([name,c])=>`<div class="row between rank-row"><span>${e(name)}</span><span class="mono nowrap">${P?`<b>${eur(c.v)}</b> <span class="muted">· ${num(c.q)}</span>`:`<b>${num(c.q)}</b> <span class="muted">njësi</span>`}</span></div>`;
+  return `<div class="page-head"><div><h1>${P?'Shitjet dhe dërgesat':'Dërgesat'}</h1><p>Sipas sasive realisht të dërguara dhe datës së dërgesës${P?', me çmimin e secilës porosi':''}.</p></div><button class="btn outline" data-action="export-csv">${icon('download',18)}Eksporto CSV</button></div>
   <div class="toolbar"><select id="report-period" class="select" style="width:auto" aria-label="Periudha"><option value="month" ${S.reportPeriod==='month'?'selected':''}>Muaji</option><option value="year" ${S.reportPeriod==='year'?'selected':''}>Viti</option><option value="all" ${S.reportPeriod==='all'?'selected':''}>Gjithë periudha</option></select>${S.reportPeriod!=='all'?`<select id="report-year" class="select" style="width:auto" aria-label="Viti">${Array.from({length:8},(_,i)=>new Date().getFullYear()-i).map(y=>`<option value="${y}" ${Number(S.reportYear)===y?'selected':''}>${y}</option>`).join('')}</select>`:''}${S.reportPeriod==='month'?`<select id="report-month" class="select" style="width:auto" aria-label="Muaji">${MONTHS.map((m,i)=>`<option value="${i+1}" ${Number(S.reportMonth)===i+1?'selected':''}>${m}</option>`).join('')}</select>`:''}</div>
-  <div class="stats">${statCard('green','Shitjet (të dërguara)',eur(totalValue),prev!=null?trendText(totalValue,prev):'për gjithë periudhën','euro','stat-money')}${statCard('purple','Njësi të dërguara',num(totalUnits),'kova, thasë, komplete','truck')}${statCard('blue','Dërgesa',num(new Set(rows.map(x=>x.shipment_id)).size),'për periudhën','doc')}${statCard('','Klientë aktivë',num(byClient.size),'me të paktën një dërgesë','users')}</div>
-  ${unpriced?`<div class="notice">${num(unpriced)} rreshta dërgese nuk kanë çmim dhe nuk llogariten në shitje. ${isAdmin()?'Vendosni çmimet te <b>Çmimet</b>, pastaj te porositë përkatëse shtypni “Plotëso çmimet nga lista”.':'Administratori duhet t’i vendosë çmimet.'}</div>`:''}
-  <div class="two-col"><section class="panel pad"><div class="section-title"><h2>Produktet më të shitura</h2><div class="chips"><button class="chip ${k==='q'?'on':''}" data-action="report-sort" data-id="qty">Sipas sasisë</button><button class="chip ${k==='v'?'on':''}" data-action="report-sort" data-id="value">Sipas vlerës</button></div></div>${ranked.length?ranked.slice(0,25).map(([name,c])=>`<div class="chartline"><div class="captionrow"><span>${e(name)}</span><b class="mono nowrap">${num(c.q)} · ${eur(c.v)}</b></div><div class="bar"><div style="width:${100*c[k]/max}%"></div></div></div>`).join(''):`<div class="empty">${icon('chart',36)}<strong>Nuk ka dërgesa</strong>për periudhën e zgjedhur.</div>`}</section>
-  <div><section class="panel pad"><div class="section-title"><h2>Agjentët sipas shitjeve</h2></div>${agents.length?agents.map(rankRow).join(''):'<p class="muted small">Nuk ka të dhëna.</p>'}</section><section class="panel pad" style="margin-top:18px"><div class="section-title"><h2>Klientët kryesorë</h2></div>${clients.length?clients.slice(0,20).map(rankRow).join(''):'<p class="muted small">Nuk ka të dhëna.</p>'}</section></div></div>
-  <p class="hint" style="margin-top:18px">Vlera llogaritet me çmimin e ruajtur në secilën porosi; ndryshimi i listës së çmimeve nuk i ndryshon porositë e vjetra.</p>`;
+  <div class="stats">${P?statCard('green','Shitjet (të dërguara)',eur(totalValue),prev!=null?trendText(totalValue,prev):'për gjithë periudhën','euro','stat-money'):statCard('green','Produkte të ndryshme',num(byProduct.size),'produkt · nuancë · paketim','layers')}${statCard('purple','Njësi të dërguara',num(totalUnits),'kova, thasë, komplete','truck')}${statCard('blue','Dërgesa',num(new Set(rows.map(x=>x.shipment_id)).size),'për periudhën','doc')}${statCard('','Klientë aktivë',num(byClient.size),'me të paktën një dërgesë','users')}</div>
+  ${P&&unpriced?`<div class="notice">${num(unpriced)} rreshta dërgese nuk kanë çmim dhe nuk llogariten në shitje. ${isAdmin()?'Vendosni çmimet te <b>Çmimet</b>, pastaj te porositë përkatëse shtypni “Plotëso çmimet nga lista”.':'Administratori duhet t’i vendosë çmimet.'}</div>`:''}
+  <div class="two-col"><section class="panel pad"><div class="section-title"><h2>Produktet më të shitura</h2>${P?`<div class="chips"><button class="chip ${k==='q'?'on':''}" data-action="report-sort" data-id="qty">Sipas sasisë</button><button class="chip ${k==='v'?'on':''}" data-action="report-sort" data-id="value">Sipas vlerës</button></div>`:''}</div>${ranked.length?ranked.slice(0,25).map(([name,c])=>`<div class="chartline"><div class="captionrow"><span>${e(name)}</span><b class="mono nowrap">${num(c.q)}${P?' · '+eur(c.v):''}</b></div><div class="bar"><div style="width:${100*c[k]/max}%"></div></div></div>`).join(''):`<div class="empty">${icon('chart',36)}<strong>Nuk ka dërgesa</strong>për periudhën e zgjedhur.</div>`}</section>
+  <div><section class="panel pad"><div class="section-title"><h2>Agjentët sipas ${P?'shitjeve':'dërgesave'}</h2></div>${agents.length?agents.map(rankRow).join(''):'<p class="muted small">Nuk ka të dhëna.</p>'}</section><section class="panel pad" style="margin-top:18px"><div class="section-title"><h2>Klientët kryesorë</h2></div>${clients.length?clients.slice(0,20).map(rankRow).join(''):'<p class="muted small">Nuk ka të dhëna.</p>'}</section></div></div>
+  ${P?'<p class="hint" style="margin-top:18px">Vlera llogaritet me çmimin e ruajtur në secilën porosi; ndryshimi i listës së çmimeve nuk i ndryshon porositë e vjetra.</p>':''}`;
 }
 function csvExport(){
   const list=reportRows();
   const n2=x=>x==null?'':Number(x).toFixed(2).replace('.',',');
   const cell=val=>{let v=String(val??'');if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
-  const rows=[['Data e dërgesës','Porosia','Klienti','Lokacioni','Produkti','Nuanca','Paketimi','Sasia e dërguar','Çmimi për njësi (EUR)','Vlera (EUR)','Agjenti'],
-    ...list.map(x=>[time(x.time),x.order_no,x.client,x.location,x.product,x.shade,x.size,x.quantity,n2(x.price),x.price!=null?n2(x.value):'',x.agent])];
+  const rows=[['Data e dërgesës','Porosia','Klienti','Lokacioni','Produkti','Nuanca','Paketimi','Sasia e dërguar',...(P?['Çmimi për njësi (EUR)','Vlera (EUR)']:[]),'Agjenti'],
+    ...list.map(x=>[time(x.time),x.order_no,x.client,x.location,x.product,x.shade,x.size,x.quantity,...(P?[n2(x.price),x.price!=null?n2(x.value):'']:[]),x.agent])];
   const csv='﻿'+rows.map(r=>r.map(cell).join(';')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`Regina_Color_Shitjet_${S.reportPeriod}_${today()}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Raporti CSV u përgatit.');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`Regina_Color_${P?'Shitjet':'Dergesat'}_${S.reportPeriod}_${today()}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Raporti CSV u përgatit.');
 }
 
 // ====================================================================
@@ -484,10 +522,12 @@ function focusAgain(id){const input=document.getElementById(id);if(input){input.
 async function action(id,el){
   const key=el.dataset.id;
   if(id==='start-demo'){S.user=await backend.switchRole(document.getElementById('demo-start-role').value);S.data=await backend.load();render();startAlerts();return;}
+  if(id==='retry-boot'){location.reload();return;}
+  if(id==='login-role'){S.loginRole=key;S.loginError=null;try{if(key&&key!=='other')localStorage.setItem('regina-login-role',key);}catch{}render();document.getElementById(key==='other'?'login-email':'login-password')?.focus();return;}
   if(id==='mobile-menu'){S.mobileOpen=!S.mobileOpen;render();return;}
   if(id==='close-menu'){S.mobileOpen=false;render();return;}
   if(id==='nav'){S.view=key;S.mobileOpen=false;S.selectedOrder=null;S.modal=null;render();window.scrollTo(0,0);if(key==='notifications')refreshPushState();return;}
-  if(id==='logout'){if(!backend.isDemo)await disablePush().catch(()=>{});clearInterval(alertTimer);alertTimer=null;await backend.logout();Object.assign(S,{user:null,data:null,selectedOrder:null,cart:{},modal:null,clientId:'',clientName:''});render();return;}
+  if(id==='logout'){if(!backend.isDemo)await disablePush().catch(()=>{});clearInterval(alertTimer);alertTimer=null;await backend.logout();Object.assign(S,{user:null,data:null,selectedOrder:null,cart:{},modal:null,clientName:'',clientLocation:''});render();return;}
   if(id==='refresh'){await reloadAndRender();toast('Të dhënat u rifreskuan.');return;}
   if(id==='order-filter'){S.ordersFilter=key;render();return;}
   if(id==='toggle-row'){S.expanded[key]=!S.expanded[key];render();return;}
@@ -516,11 +556,14 @@ async function action(id,el){
   }
   if(id==='submit-order'){
     const items=Object.entries(S.cart).filter(([,qty])=>qty>0).map(([variant_id,qty])=>({variant_id,qty}));
-    if(!S.clientId||!items.length)throw Error('Zgjedh klientin, lokacionin dhe së paku një produkt.');
-    const c=byId('clients',S.clientId);
-    if(!confirm(`Ta dërgojmë porosinë për ${c?.name} — ${c?.location} në fabrikë?`))return;
-    const created=await backend.createOrder(S.clientId,items,S.note);
-    Object.assign(S,{cart:{},clientId:'',clientName:'',note:'',searchProducts:'',rowSel:{},selectedOrder:created,view:'orders'});
+    if(!items.length)throw Error('Shto së paku një produkt.');
+    if(!clientReady())throw Error('Shkruaj klientin dhe lokacionin.');
+    let c=resolveClient();
+    const name=c?.name||S.clientName.trim(),loc=c?.location||S.clientLocation.trim();
+    if(!confirm(`Ta dërgojmë porosinë për ${name} — ${loc} në fabrikë?${c?'':'\n(Klienti i ri do të ruhet.)'}`))return;
+    if(!c)c=await backend.addClient(name,loc);
+    const created=await backend.createOrder(c.id,items,S.note);
+    Object.assign(S,{cart:{},clientName:'',clientLocation:'',note:'',searchProducts:'',rowSel:{},selectedOrder:created,view:'orders'});
     await reloadAndRender();toast('Porosia u dërgua në fabrikë.');window.scrollTo(0,0);return;
   }
   if(id==='status'){
@@ -588,7 +631,7 @@ async function onSubmit(event){
   if(!['client-form','product-form','image-form'].includes(f.id))return;
   event.preventDefault();const fd=new FormData(f);
   try{
-    if(f.id==='client-form'){const c=await backend.addClient(String(fd.get('name')),String(fd.get('location')));S.clientId=c.id;S.clientName=c.name;S.modal=null;await reloadAndRender();toast('Klienti u shtua.');}
+    if(f.id==='client-form'){const c=await backend.addClient(String(fd.get('name')),String(fd.get('location')));S.clientName=c.name;S.clientLocation=c.location;S.modal=null;await reloadAndRender();toast('Klienti u shtua.');}
     if(f.id==='product-form'){await backend.addProduct(String(fd.get('name')).trim(),String(fd.get('department')),String(fd.get('size')).trim());S.modal=null;await reloadAndRender();toast('Produkti u shtua.');}
     if(f.id==='image-form'){const url=String(fd.get('url')).trim();if(url&&!/^https:\/\//i.test(url))throw Error('Fotografia duhet të ketë URL HTTPS.');await backend.setProductImage(S.product,url);S.modal=null;S.product=null;await reloadAndRender();toast('Fotografia u ruajt.');}
   }catch(err){toast(err.message,true);}
@@ -608,8 +651,14 @@ app.addEventListener('change',async evt=>{
   if(t.dataset.rowShade){setRow(t.dataset.rowShade,{shade:t.value});render();return;}
   if(t.dataset.rowQty){const q=Number(t.value);if(!Number.isSafeInteger(q)||q<1||q>1000000){toast('Sasi e pavlefshme.',true);render();return;}setRow(t.dataset.rowQty,{qty:q});return;}
   if(id==='role-demo'){try{S.user=await backend.switchRole(t.value);S.data=await backend.load();S.selectedOrder=null;S.view='dashboard';render();}catch(err){toast(err.message,true);}return;}
-  if(id==='new-client-name'){S.clientName=t.value;const locs=getData().clients.filter(c=>c.active&&c.name===t.value);S.clientId=locs.length===1?locs[0].id:'';render();return;}
-  if(id==='new-client-loc'){S.clientId=t.value;render();return;}
+  if(id==='client-name'){
+    S.clientName=t.value;
+    const same=activeClients().filter(c=>norm(c.name)===norm(t.value));
+    if(same.length===1)S.clientLocation=same[0].location;          // klienti me një lokacion: plotësohet vetë
+    else if(same.length>1&&!same.some(c=>norm(c.location)===norm(S.clientLocation)))S.clientLocation='';
+    render();if(same.length>1)focusAgain('client-location');return;
+  }
+  if(id==='client-location'){S.clientLocation=t.value;render();return;}
   if(id==='dash-filter'){S.dashFilter=t.value;render();return;}
   if(id==='report-period'){S.reportPeriod=t.value;render();return;}
   if(id==='report-year'){S.reportYear=Number(t.value);render();return;}
@@ -618,11 +667,21 @@ app.addEventListener('change',async evt=>{
 app.addEventListener('input',evt=>{
   const id=evt.target.id;
   if(id==='order-note'){S.note=evt.target.value;return;}
+  if(id==='client-name'){S.clientName=evt.target.value;syncClientUi();return;}
+  if(id==='client-location'){S.clientLocation=evt.target.value;syncClientUi();return;}
   const targets={'prices-search':'pricesSearch','product-search':'searchProducts','orders-search':'searchOrders','catalog-search':'catalogSearch','dash-search':'dashSearch'};
   if(targets[id]){S[targets[id]]=evt.target.value;render();focusAgain(id);}
 });
 document.addEventListener('keydown',evt=>{if(evt.key==='Escape'&&(S.modal||S.mobileOpen)){S.modal=null;S.mobileOpen=false;render();}});
 
-async function boot(){render();swReg();try{S.user=await backend.init();if(S.user){S.data=await backend.load();openDeepLink();render();startAlerts();}else render();}catch(err){S.user=null;S.data=null;S.loginError=err.message;render();}}
+async function boot(){
+  render();swReg();
+  try{S.user=await backend.init();if(S.user){S.data=await backend.load();openDeepLink();render();startAlerts();}else render();}
+  catch(err){
+    // Pa internet: mos e nxirr përdoruesin, trego mundësinë për të provuar përsëri.
+    if(err.offline){app.innerHTML=`<div class="boot"><img class="boot-logo" src="assets/brand/regina-colori.png" alt="Regina Colori" width="176" height="44"/><small>${e(err.message)}</small><button class="btn gold" data-action="retry-boot">${icon('refresh',18)}Provo përsëri</button></div>`;return;}
+    S.user=null;S.data=null;S.loginError=err.message;render();
+  }
+}
 boot();
 setInterval(async()=>{if(!S.user||backend.isDemo||S.modal||!['dashboard','orders','reports'].includes(S.view)||S.selectedOrder||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;try{await reloadAndRender();}catch(err){console.warn('Rifreskimi automatik:',err.message);}},30000);

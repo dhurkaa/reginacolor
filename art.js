@@ -51,10 +51,11 @@ export const crown = (size = 34) => `<svg class="crown" width="${size}" height="
   <path d="M11.5 18 20 4l8.5 14-8.5 9z" fill="#F6C766" opacity=".55"/>
 </svg>`;
 
-export function logo() {
+// Logoja zyrtare (assets/brand/regina-colori.png, e bardhë/portokalli për sfond të errët).
+export function logo(tag = 'MENAXHIMI I POROSIVE') {
   return `<div class="brand">
-    <div class="brand-row">${crown(36)}<div class="brand-words"><span class="brand-name">REGINA<sup>®</sup></span><span class="brand-sub">colori<i></i></span></div></div>
-    <div class="brand-tag">MENAXHIMI I POROSIVE</div>
+    <img class="brand-logo" src="assets/brand/regina-colori.png" alt="Regina Colori" width="192" height="48"/>
+    <div class="brand-tag">${tag}</div>
   </div>`;
 }
 
