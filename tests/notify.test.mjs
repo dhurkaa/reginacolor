@@ -65,14 +65,14 @@ assert.deepEqual(r.body, {telegram: 2, push: 1});
 const tg = calls.filter((c) => c.url.startsWith('https://api.telegram.org/bot123:abc/sendMessage'));
 assert.equal(tg.length, 2);
 const text = JSON.parse(tg[0].opts.body).text;
-assert.match(text, /Porosi e re #00007/);
+assert.match(text, /Porosi e re #RG-0007/);
 assert.match(text, /Termo Projekt<\/b> — Istog/);
 assert.match(text, /Bau Fassade Full A 1\.5mm · 25 kg — <b>27<\/b> copë \(661,50 €\)/);
 assert.match(text, /BP 950 — <b>10<\/b> thasë/);            // pluhurat pa peshë, pa çmim
 assert.match(text, /Vlera: 661,50 €<\/b> \(disa produkte pa çmim\)/);
 assert.match(text, /Për nesër &lt;urgjent&gt;/);           // HTML i escape-uar
 assert.match(text, /https:\/\/regina\.example\.com\/\?order=/);
-assert.equal(pushed[0].payload.title, '🧾 Porosi e re #00007');
+assert.equal(pushed[0].payload.title, '🧾 Porosi e re #RG-0007');
 assert.equal(pushed[0].payload.url, `/?order=${ORDER}`);
 const subsQuery = calls.find((c) => c.url.includes('push_subscriptions')).url;
 assert.match(subsQuery, /user\.role=in\.\(warehouse,admin\)/);   // vetëm fabrika/admin
@@ -83,7 +83,7 @@ r = await call(auth, {event: 'shipment', order_id: ORDER});
 assert.equal(r.code, 200, JSON.stringify(r.body));
 assert.deepEqual(r.body, {push: 1});
 assert.match(calls.find((c) => c.url.includes('push_subscriptions')).url, /user_id=eq\.agent-1/);   // agjenti i porosisë
-assert.equal(pushed[0].payload.title, '🚚 Porosia #00007 u dërgua');
+assert.equal(pushed[0].payload.title, '🚚 Porosia #RG-0007 u dërgua');
 assert.match(pushed[0].payload.body, /35 njësi/);
 assert.ok(!calls.some((c) => c.url.includes('telegram')), 'dërgesat nuk shkojnë në Telegram');
 

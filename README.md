@@ -149,6 +149,7 @@ npm run vapid      # gjeneron çelësa të rinj VAPID (nëse duhen)
 | Skedari | Përmbajtja |
 |---|---|
 | `index.html`, `styles.css`, `app.js` | ndërfaqja |
+| `art.js` | ikonat, logoja dhe ilustrimet e produkteve (kova/thasë sipas linjës; admini mund të vendosë foto reale) |
 | `catalog.js` | katalogu i produkteve |
 | `cloud-backend.js` / `local-backend.js` | Supabase / demo në shfletues |
 | `config.js` | URL e Supabase, anon key, çelësi publik VAPID |

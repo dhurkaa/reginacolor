@@ -41,7 +41,7 @@ const money = (n) => {
   const [i, d] = (Math.round(Number(n) * 100) / 100).toFixed(2).split('.');
   return `${i.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${d} €`;
 };
-const orderNo = (o) => `#${String(o.order_no || 0).padStart(5, '0')}`;
+const orderNo = (o) => `#RG-${String(o.order_no || 0).padStart(4, '0')}`;
 const html = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const isPowder = (p) => String(p?.department || '').includes('pluhura');
 const unitName = (p) => (p?.name || '').includes('Waterproofing') ? 'komplete' : isPowder(p) ? 'thasë' : 'copë';
